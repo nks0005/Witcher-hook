@@ -18,9 +18,6 @@ bool pattern_in_bytes(unsigned char *target, int target_len, unsigned char *patt
 void SendSignal();
 int jdbc_error_check(unsigned char *cptr, size_t len);
 
-
-
-
 void SendSignal()
 {
     // 시그널 전송
@@ -76,11 +73,16 @@ ssize_t recv(int sockfd, void *buf, size_t len, int flags)
         fclose(file);
     }
 
-    
     if (pattern_in_bytes(cptr, result, mysql_msg, error_msg_len))
+    {
+        printf("recv detected! 1");
         SendSignal();
+    }
     else if (jdbc_error_check(cptr, result))
+    {
+        printf("recv detected! 2");
         SendSignal();
+    }
 
     return result;
 }
@@ -103,7 +105,6 @@ ssize_t write(int fd, const void *buf, size_t count)
 
     if (pattern_in_bytes(cptr, result, sqlite_msg, sqlite_msg_len))
         SendSignal();
-    
 
     return result;
 }
@@ -124,9 +125,15 @@ ssize_t read(int fd, void *buf, size_t count)
     }
 
     if (pattern_in_bytes(cptr, result, mysql_msg, error_msg_len))
+    {
+        printf("read detected! 1");
         SendSignal();
+    }
     else if (jdbc_error_check(cptr, result))
+    {
+        printf("read detected! 2");
         SendSignal();
+    }
 
     return result;
 }
