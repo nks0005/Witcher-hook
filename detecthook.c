@@ -61,15 +61,16 @@ ssize_t recv(int sockfd, void *buf, size_t len, int flags)
     unsigned char *mysql_msg = "You have an error i";
     int error_msg_len = strlen(mysql_msg);
 
+    // 로그 전송
+    FILE *file = fopen("/tmp/recvhook", "a");
+    if (file)
+    {
+        fwrite(buf, 1, result, file);
+        fclose(file);
+    }
+
     if (pattern_in_bytes(cptr, len, mysql_msg, error_msg_len) || jdbc_error_check(cptr, len))
     {
-        // 로그 전송
-        FILE *file = fopen("/tmp/recvhook", "a");
-        if (file)
-        {
-            fwrite(buf, 1, result, file);
-            fclose(file);
-        }
 
         SendSignal();
     }
@@ -85,15 +86,16 @@ ssize_t write(int fd, const void *buf, size_t count)
     unsigned char *sqlite_msg = "SQLITE_ERROR:";
     int sqlite_msg_len = strlen(sqlite_msg);
 
+    // 로그 전송
+    FILE *file = fopen("/tmp/writehook", "a");
+    if (file)
+    {
+        fwrite(buf, 1, result, file);
+        fclose(file);
+    }
+
     if (pattern_in_bytes(cptr, count, sqlite_msg, sqlite_msg_len))
     {
-        // 로그 전송
-        FILE *file = fopen("/tmp/writehook", "a");
-        if (file)
-        {
-            fwrite(buf, 1, result, file);
-            fclose(file);
-        }
 
         SendSignal();
     }
@@ -109,15 +111,16 @@ ssize_t read(int fd, void *buf, size_t count)
     unsigned char *mysql_msg = "You have an error i";
     int error_msg_len = strlen(mysql_msg);
 
+    FILE *file = fopen("/tmp/readhook", "a");
+    if (file)
+    {
+        fwrite(buf, 1, result, file);
+        fclose(file);
+    }
+
     if (pattern_in_bytes(cptr, count, mysql_msg, error_msg_len) || jdbc_error_check(cptr, count))
     {
         // 로그 전송
-        FILE *file = fopen("/tmp/readhook", "a");
-        if (file)
-        {
-            fwrite(buf, 1, result, file);
-            fclose(file);
-        }
 
         SendSignal();
     }
@@ -149,9 +152,9 @@ int openat(int dirfd, const char *pathname, int flags, ...)
         fwrite(pathname, 1, size, file);
         fclose(file);
     }
-
-    // 원본 openat 함수를 호출합니다.
-    return original_openat(dirfd, pathname, flags, mode);
+    x
+        // 원본 openat 함수를 호출합니다.
+        return original_openat(dirfd, pathname, flags, mode);
 }
 
 bool pattern_in_bytes(unsigned char *target, int target_len, unsigned char *pattern, int pattern_len)
