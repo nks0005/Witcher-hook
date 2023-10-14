@@ -1,191 +1,157 @@
 #define _GNU_SOURCE
 #include <dlfcn.h>
 #include <stdio.h>
-#include <sys/types.h>
-#include <unistd.h> // read 함수를 사용하기 위해 추가
-
-#include <stdio.h>
-#include <string.h>
 #include <stdlib.h>
+#include <string.h>
+#include <stdarg.h>
 #include <signal.h>
-
+#include <fcntl.h>
 #include <stdbool.h>
 
+int (*original_openat)(int dirfd, const char *pathname, int flags, ...);
+
+ssize_t (*real_recv)(int sockfd, void *buf, size_t len, int flags) = NULL;
+ssize_t (*real_write)(int fd, const void *buf, size_t count) = NULL;
+ssize_t (*real_read)(int fd, void *buf, size_t count) = NULL;
+
 bool pattern_in_bytes(unsigned char *target, int target_len, unsigned char *pattern, int pattern_len);
-static ssize_t (*real_recv)(int sockfd, void *buf, size_t len, int flags) = NULL;
+
+void SendSignal()
+{
+    // 시그널 전송
+    FILE *pidFile = fopen("/tmp/httpreqr.pid", "r");
+    if (pidFile)
+    {
+        char pidStr[10];
+        if (fgets(pidStr, sizeof(pidStr), pidFile))
+        {
+            int pid = atoi(pidStr);
+            // PID에 Segment Fault 신호 보내기
+            kill(pid, SIGSEGV);
+            // printf("Sent SIGSEGV signal to PID %d\n", pid);
+        }
+        fclose(pidFile);
+    }
+    else
+        perror("can't open httpreqr.pid");
+}
+
+int jdbc_error_check(unsigned char *cptr, size_t len)
+{
+    // JDBC 오류 메시지 패턴 확인
+    unsigned char *jdbc_msg1 = "\x02\x00\x00\x00.\x00\x00\x00.~\x00\x00\x00\x05~\xff\xff\xea";
+    unsigned char *jdbc_msg4 = "\xff\xff\xea";
+
+    if (pattern_in_bytes(cptr, len, jdbc_msg4, 3))
+    {
+        if (pattern_in_bytes(cptr, len, jdbc_msg1, 18))
+        {
+            return 1;
+        }
+    }
+
+    return 0;
+}
 
 ssize_t recv(int sockfd, void *buf, size_t len, int flags)
 {
-
     real_recv = dlsym(RTLD_NEXT, "recv");
     ssize_t result = real_recv(sockfd, buf, len, flags);
-
     unsigned char *cptr = (unsigned char *)(buf);
+    unsigned char *mysql_msg = "You have an error i";
+    int error_msg_len = strlen(mysql_msg);
 
-    FILE *file = fopen("/tmp/hook", "a");
-    if (file)
+    if (pattern_in_bytes(cptr, len, mysql_msg, error_msg_len) || jdbc_error_check(cptr, len))
     {
-        unsigned char *mysql_msg = "You have an error i";
-        int error_msg_len = strlen(mysql_msg);
-        if (pattern_in_bytes(cptr, len, mysql_msg, error_msg_len))
+        // 로그 전송
+        FILE *file = fopen("/tmp/recvhook", "a");
+        if (file)
         {
             fwrite(buf, 1, result, file);
-
-            // 시그널 전송
-            FILE *pidFile = fopen("/tmp/httpreqr.pid", "r");
-            if (pidFile)
-            {
-                char pidStr[10];
-                if (fgets(pidStr, sizeof(pidStr), pidFile))
-                {
-                    int pid = atoi(pidStr);
-
-                    // PID에 Segment Fault 신호 보내기
-                    kill(pid, SIGSEGV);
-                    printf("Sent SIGSEGV signal to PID %d\n", pid);
-                }
-                fclose(pidFile);
-            }
-            else
-            {
-                perror("Failed to open /tmp/httpreqr.pid");
-            }
+            fclose(file);
         }
+
+        SendSignal();
     }
+
     return result;
 }
-
-static ssize_t (*real_write)(int fd, const void *buf, size_t count) = NULL;
 
 ssize_t write(int fd, const void *buf, size_t count)
 {
-    if (real_write == NULL)
-    {
-        real_write = dlsym(RTLD_NEXT, "write");
-    }
-
+    real_write = dlsym(RTLD_NEXT, "write");
     ssize_t result = real_write(fd, buf, count);
-    
-
-
-     FILE *file = fopen("/tmp/hook", "a");
-    if (file)
-    {
-        // 읽은 데이터를 파일에 쓰기 전에 문자열 검색 수행
-
-     unsigned char *cptr = (unsigned char *)(buf);
-    unsigned char *sqlite_msg = ": syntax error";
+    unsigned char *cptr = (unsigned char *)(buf);
+    unsigned char *sqlite_msg = "SQLITE_ERROR:";
     int sqlite_msg_len = strlen(sqlite_msg);
 
-        if (pattern_in_bytes(cptr, count, sqlite_msg, sqlite_msg_len))
-        {
-            fprintf(file, "detected!!  %d: ", fd);
-            fwrite(buf, 1, result, file);
-
-            // 시그널 전송
-            FILE *pidFile = fopen("/tmp/httpreqr.pid", "r");
-            if (pidFile)
-            {
-                char pidStr[10];
-                if (fgets(pidStr, sizeof(pidStr), pidFile))
-                {
-                    int pid = atoi(pidStr);
-
-                    // PID에 Segment Fault 신호 보내기
-                    kill(pid, SIGSEGV);
-                    printf("Sent SIGSEGV signal to PID %d\n", pid);
-                }
-                fclose(pidFile);
-            }
-            else
-            {
-                perror("Failed to open /tmp/httpreqr.pid");
-            }
-        }
-        else
-        {
-            // 검색된 문자열이 없으면 그냥 읽은 데이터를 씀
-            fprintf(file, "Read data from file descriptor %d: ", fd);
-            fwrite(buf, 1, result, file);
-        }
-        fprintf(file, "\n");
-        fclose(file);
-    }
-    else
+    if (pattern_in_bytes(cptr, count, sqlite_msg, sqlite_msg_len))
     {
-        perror("Failed to open /tmp/hook for writing");
-    }
+        // 로그 전송
+        FILE *file = fopen("/tmp/writehook", "a");
+        if (file)
+        {
+            fwrite(buf, 1, result, file);
+            fclose(file);
+        }
 
+        SendSignal();
+    }
 
     return result;
 }
 
-static ssize_t (*real_read)(int fd, void *buf, size_t count) = NULL;
 ssize_t read(int fd, void *buf, size_t count)
 {
-    // 동적 링크를 사용하여 원래 read 함수 포인터를 가져옵니다.
     real_read = dlsym(RTLD_NEXT, "read");
-    if (!real_read)
-    {
-        // 에러 처리
-        perror("dlsym failed");
-        return -1; // 실패 처리
-    }
-
-    // 실제 read 함수를 호출하여 데이터를 읽어옵니다.
     ssize_t result = real_read(fd, buf, count);
+    unsigned char *cptr = (unsigned char *)(buf);
+    unsigned char *mysql_msg = "You have an error i";
+    int error_msg_len = strlen(mysql_msg);
 
-    // 특정 파일 디스크립터(예: fd == 19)에서 읽은 데이터를 파일에 기록합니다.
-
-    FILE *file = fopen("/tmp/hook", "a");
-    if (file)
+    if (pattern_in_bytes(cptr, count, mysql_msg, error_msg_len) || jdbc_error_check(cptr, count))
     {
-        // 읽은 데이터를 파일에 쓰기 전에 문자열 검색 수행
-
-        unsigned char *mysql_msg = "You have an error i";
-        int error_msg_len = strlen(mysql_msg);
-        unsigned char *cptr = (unsigned char *)(buf);
-
-        if (pattern_in_bytes(cptr, count, mysql_msg, error_msg_len))
+        // 로그 전송
+        FILE *file = fopen("/tmp/readhook", "a");
+        if (file)
         {
-            fprintf(file, "detected!!  %d: ", fd);
             fwrite(buf, 1, result, file);
-
-            // 시그널 전송
-            FILE *pidFile = fopen("/tmp/httpreqr.pid", "r");
-            if (pidFile)
-            {
-                char pidStr[10];
-                if (fgets(pidStr, sizeof(pidStr), pidFile))
-                {
-                    int pid = atoi(pidStr);
-
-                    // PID에 Segment Fault 신호 보내기
-                    kill(pid, SIGSEGV);
-                    printf("Sent SIGSEGV signal to PID %d\n", pid);
-                }
-                fclose(pidFile);
-            }
-            else
-            {
-                perror("Failed to open /tmp/httpreqr.pid");
-            }
+            fclose(file);
         }
-        else
-        {
-            // 검색된 문자열이 없으면 그냥 읽은 데이터를 씀
-            fprintf(file, "Read data from file descriptor %d: ", fd);
-            fwrite(buf, 1, result, file);
-        }
-        fprintf(file, "\n");
-        fclose(file);
-    }
-    else
-    {
-        perror("Failed to open /tmp/hook for writing");
+
+        SendSignal();
     }
 
     return result;
+}
+
+int openat(int dirfd, const char *pathname, int flags, ...)
+{
+    // 원본 openat 함수를 불러옵니다.
+    if (!original_openat)
+    {
+        original_openat = dlsym(RTLD_NEXT, "openat");
+    }
+
+    va_list args;
+    va_start(args, flags);
+    mode_t mode = va_arg(args, mode_t);
+    va_end(args);
+
+    // 원하는 후킹 동작을 수행할 수 있습니다.
+    // 예를 들어, 파일 경로를 변경하거나 로깅을 추가할 수 있습니다.
+    // printf("Hooked openat: %s\n", pathname);
+
+    int size = strlen(pathname);
+    FILE *file = fopen("/tmp/openathook", "a");
+    if (file)
+    {
+        fwrite(pathname, 1, size, file);
+        fclose(file);
+    }
+
+    // 원본 openat 함수를 호출합니다.
+    return original_openat(dirfd, pathname, flags, mode);
 }
 
 bool pattern_in_bytes(unsigned char *target, int target_len, unsigned char *pattern, int pattern_len)
@@ -237,5 +203,4 @@ bool pattern_in_bytes(unsigned char *target, int target_len, unsigned char *patt
 }
 
 // gcc -shared -o hook_recv.so testhook.c -ldl -fPIC
-
 // LD_PRELOAD=./hook_recv.so node app.js
