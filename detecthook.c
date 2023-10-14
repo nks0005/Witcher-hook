@@ -111,8 +111,18 @@ ssize_t write(int fd, const void *buf, size_t count)
         fclose(file);
     }
 
-    if (pattern_in_bytes(cptr, result, sqlite_msg, sqlite_msg_len))
+    unsigned char *jdbc_msg = "java.sql.SQLSyntaxErrorException:";
+    int jbdc_msg_len = strlen(jdbc_msg);
+
+
+
+    if (pattern_in_bytes(cptr, result, sqlite_msg, sqlite_msg_len)){
         SendSignal();
+    }
+    else if(pattern_in_bytes(cptr, result, jdbc_msg, jbdc_msg_len)){
+        printf("write detected try jdbc\n");
+        SendSignal();
+    }
 
     return result;
 }
