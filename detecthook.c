@@ -10,11 +10,16 @@
 
 int (*original_openat)(int dirfd, const char *pathname, int flags, ...);
 
-ssize_t (*real_recv)(int sockfd, void *buf, size_t len, int flags) = NULL;
-ssize_t (*real_write)(int fd, const void *buf, size_t count) = NULL;
-ssize_t (*real_read)(int fd, void *buf, size_t count) = NULL;
+static ssize_t (*real_recv)(int sockfd, void *buf, size_t len, int flags) = NULL;
+static ssize_t (*real_write)(int fd, const void *buf, size_t count) = NULL;
+static ssize_t (*real_read)(int fd, void *buf, size_t count) = NULL;
 
 bool pattern_in_bytes(unsigned char *target, int target_len, unsigned char *pattern, int pattern_len);
+void SendSignal();
+int jdbc_error_check(unsigned char *cptr, size_t len);
+
+
+
 
 void SendSignal()
 {
@@ -27,6 +32,7 @@ void SendSignal()
         {
             int pid = atoi(pidStr);
             // PID에 Segment Fault 신호 보내기
+            printf("Send Signal : %d\n", pid);
             kill(pid, SIGSEGV);
             // printf("Sent SIGSEGV signal to PID %d\n", pid);
         }
@@ -57,6 +63,7 @@ ssize_t recv(int sockfd, void *buf, size_t len, int flags)
 {
     real_recv = dlsym(RTLD_NEXT, "recv");
     ssize_t result = real_recv(sockfd, buf, len, flags);
+
     unsigned char *cptr = (unsigned char *)(buf);
     unsigned char *mysql_msg = "You have an error i";
     int error_msg_len = strlen(mysql_msg);
@@ -69,11 +76,11 @@ ssize_t recv(int sockfd, void *buf, size_t len, int flags)
         fclose(file);
     }
 
-    if (pattern_in_bytes(cptr, len, mysql_msg, error_msg_len) || jdbc_error_check(cptr, len))
-    {
-
+    
+    if (pattern_in_bytes(cptr, len, mysql_msg, error_msg_len))
         SendSignal();
-    }
+    else if (jdbc_error_check(cptr, len))
+        SendSignal();
 
     return result;
 }
@@ -95,10 +102,8 @@ ssize_t write(int fd, const void *buf, size_t count)
     }
 
     if (pattern_in_bytes(cptr, count, sqlite_msg, sqlite_msg_len))
-    {
-
         SendSignal();
-    }
+    
 
     return result;
 }
@@ -118,12 +123,10 @@ ssize_t read(int fd, void *buf, size_t count)
         fclose(file);
     }
 
-    if (pattern_in_bytes(cptr, count, mysql_msg, error_msg_len) || jdbc_error_check(cptr, count))
-    {
-        // 로그 전송
-
+    if (pattern_in_bytes(cptr, count, mysql_msg, error_msg_len))
         SendSignal();
-    }
+    else if (jdbc_error_check(cptr, count))
+        SendSignal();
 
     return result;
 }
@@ -152,9 +155,9 @@ int openat(int dirfd, const char *pathname, int flags, ...)
         fwrite(pathname, 1, size, file);
         fclose(file);
     }
-    x
-        // 원본 openat 함수를 호출합니다.
-        return original_openat(dirfd, pathname, flags, mode);
+
+    // 원본 openat 함수를 호출합니다.
+    return original_openat(dirfd, pathname, flags, mode);
 }
 
 bool pattern_in_bytes(unsigned char *target, int target_len, unsigned char *pattern, int pattern_len)
