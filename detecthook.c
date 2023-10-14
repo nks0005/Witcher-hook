@@ -66,8 +66,10 @@ ssize_t recv(int sockfd, void *buf, size_t len, int flags)
     unsigned char *mysql_msg = "You have an error i";
     int error_msg_len = strlen(mysql_msg);
 
-    // 로그 전송
-    FILE *file = fopen("/tmp/recvhook", "a");
+    unsigned char *jdbc_msg = "java.sql.SQLSyntaxErrorException:";
+    int jbdc_msg_len = strlen(jdbc_msg);
+
+    FILE *file = fopen("/tmp/readhook", "a");
     if (file)
     {
         fwrite(buf, 1, result, file);
@@ -76,14 +78,19 @@ ssize_t recv(int sockfd, void *buf, size_t len, int flags)
 
     if (pattern_in_bytes(cptr, result, mysql_msg, error_msg_len))
     {
-        printf("recv detected! 1");
+        printf("recv detected! 1\n");
+        SendSignal();
+    }
+    else if(pattern_in_bytes(cptr, result, jdbc_msg, jbdc_msg_len)){
+        printf("recv detected try jdbc\n");
         SendSignal();
     }
     else if (jdbc_error_check(cptr, result))
     {
-        printf("recv detected! 2");
+        printf("recv detected! 2\n");
         SendSignal();
     }
+
 
     return result;
 }
@@ -118,6 +125,9 @@ ssize_t read(int fd, void *buf, size_t count)
     unsigned char *mysql_msg = "You have an error i";
     int error_msg_len = strlen(mysql_msg);
 
+    unsigned char *jdbc_msg = "java.sql.SQLSyntaxErrorException:";
+    int jbdc_msg_len = strlen(jdbc_msg);
+
     FILE *file = fopen("/tmp/readhook", "a");
     if (file)
     {
@@ -127,12 +137,16 @@ ssize_t read(int fd, void *buf, size_t count)
 
     if (pattern_in_bytes(cptr, result, mysql_msg, error_msg_len))
     {
-        printf("read detected! 1");
+        printf("read detected! 1\n");
+        SendSignal();
+    }
+    else if(pattern_in_bytes(cptr, result, jdbc_msg, jbdc_msg_len)){
+        printf("read detected try jdbc\n");
         SendSignal();
     }
     else if (jdbc_error_check(cptr, result))
     {
-        printf("read detected! 2");
+        printf("read detected! 2\n");
         SendSignal();
     }
 
