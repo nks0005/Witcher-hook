@@ -77,9 +77,9 @@ ssize_t recv(int sockfd, void *buf, size_t len, int flags)
     }
 
     
-    if (pattern_in_bytes(cptr, len, mysql_msg, error_msg_len))
+    if (pattern_in_bytes(cptr, result, mysql_msg, error_msg_len))
         SendSignal();
-    else if (jdbc_error_check(cptr, len))
+    else if (jdbc_error_check(cptr, result))
         SendSignal();
 
     return result;
@@ -101,7 +101,7 @@ ssize_t write(int fd, const void *buf, size_t count)
         fclose(file);
     }
 
-    if (pattern_in_bytes(cptr, count, sqlite_msg, sqlite_msg_len))
+    if (pattern_in_bytes(cptr, result, sqlite_msg, sqlite_msg_len))
         SendSignal();
     
 
@@ -123,9 +123,9 @@ ssize_t read(int fd, void *buf, size_t count)
         fclose(file);
     }
 
-    if (pattern_in_bytes(cptr, count, mysql_msg, error_msg_len))
+    if (pattern_in_bytes(cptr, result, mysql_msg, error_msg_len))
         SendSignal();
-    else if (jdbc_error_check(cptr, count))
+    else if (jdbc_error_check(cptr, result))
         SendSignal();
 
     return result;
