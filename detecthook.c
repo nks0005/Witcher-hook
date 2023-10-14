@@ -20,6 +20,7 @@ int jdbc_error_check(unsigned char *cptr, size_t len);
 
 void SendSignal()
 {
+    printf("pre Send Signal");
     // 시그널 전송
     FILE *pidFile = fopen("/tmp/httpreqr.pid", "r");
     if (pidFile)
