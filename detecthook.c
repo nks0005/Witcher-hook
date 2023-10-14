@@ -39,7 +39,7 @@ void SendSignal()
         fclose(pidFile);
     }
     else
-        perror("can't open httpreqr.pid");
+        printf("can't open httpreqr.pid");
 }
 
 int jdbc_error_check(unsigned char *cptr, size_t len)
