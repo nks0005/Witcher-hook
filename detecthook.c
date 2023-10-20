@@ -38,6 +38,9 @@ void SendSignal()
     }
     else
         printf("can't open httpreqr.pid");
+
+    FILE *test = fopen("/tmp/check", "w");
+    fclose(test);
 }
 
 int jdbc_error_check(unsigned char *cptr, size_t len)
@@ -69,6 +72,9 @@ ssize_t recv(int sockfd, void *buf, size_t len, int flags)
     unsigned char *jdbc_msg = "java.sql.SQLSyntaxErrorException:";
     int jbdc_msg_len = strlen(jdbc_msg);
 
+    unsigned char *nosql_msg = "BadValue";
+    int nosql_msg_len = strlen(nosql_msg);
+
     FILE *file = fopen("/tmp/readhook", "a");
     if (file)
     {
@@ -81,8 +87,14 @@ ssize_t recv(int sockfd, void *buf, size_t len, int flags)
         printf("recv detected! 1\n");
         SendSignal();
     }
-    else if(pattern_in_bytes(cptr, result, jdbc_msg, jbdc_msg_len)){
+    else if (pattern_in_bytes(cptr, result, jdbc_msg, jbdc_msg_len))
+    {
         printf("recv detected try jdbc\n");
+        SendSignal();
+    }
+    else if (pattern_in_bytes(cptr, result, nosql_msg, nosql_msg_len))
+    {
+        printf("recv detected try nosql\n");
         SendSignal();
     }
     else if (jdbc_error_check(cptr, result))
@@ -90,7 +102,6 @@ ssize_t recv(int sockfd, void *buf, size_t len, int flags)
         printf("recv detected! 2\n");
         SendSignal();
     }
-
 
     return result;
 }
@@ -114,12 +125,12 @@ ssize_t write(int fd, const void *buf, size_t count)
     unsigned char *jdbc_msg = "java.sql.SQLSyntaxErrorException:";
     int jbdc_msg_len = strlen(jdbc_msg);
 
-
-
-    if (pattern_in_bytes(cptr, result, sqlite_msg, sqlite_msg_len)){
+    if (pattern_in_bytes(cptr, result, sqlite_msg, sqlite_msg_len))
+    {
         SendSignal();
     }
-    else if(pattern_in_bytes(cptr, result, jdbc_msg, jbdc_msg_len)){
+    else if (pattern_in_bytes(cptr, result, jdbc_msg, jbdc_msg_len))
+    {
         printf("write detected try jdbc\n");
         SendSignal();
     }
@@ -138,6 +149,9 @@ ssize_t read(int fd, void *buf, size_t count)
     unsigned char *jdbc_msg = "java.sql.SQLSyntaxErrorException:";
     int jbdc_msg_len = strlen(jdbc_msg);
 
+    unsigned char *nosql_msg = "BadValue";
+    int nosql_msg_len = strlen(nosql_msg);
+
     FILE *file = fopen("/tmp/readhook", "a");
     if (file)
     {
@@ -145,16 +159,22 @@ ssize_t read(int fd, void *buf, size_t count)
         fclose(file);
     }
 
-    if (pattern_in_bytes(cptr, result, mysql_msg, error_msg_len))
+    if (pattern_in_bytes(cptr, count, mysql_msg, error_msg_len))
     {
         printf("read detected! 1\n");
         SendSignal();
     }
-    else if(pattern_in_bytes(cptr, result, jdbc_msg, jbdc_msg_len)){
+    else if (pattern_in_bytes(cptr, count, jdbc_msg, jbdc_msg_len))
+    {
         printf("read detected try jdbc\n");
         SendSignal();
     }
-    else if (jdbc_error_check(cptr, result))
+    else if (pattern_in_bytes(cptr, count, nosql_msg, nosql_msg_len))
+    {
+        printf("read detected try nosql\n");
+        SendSignal();
+    }
+    else if (jdbc_error_check(cptr, count))
     {
         printf("read detected! 2\n");
         SendSignal();
