@@ -75,6 +75,15 @@ ssize_t recv(int sockfd, void *buf, size_t len, int flags)
     unsigned char *nosql_msg = "BadValue";
     int nosql_msg_len = strlen(nosql_msg);
 
+    unsigned char *postsql_msg_1 = "SERROR";
+    int postsql_msg_1_len = strlen(postsql_msg_1);
+
+    unsigned char *postsql_msg_2 = "VERROR";
+    int postsql_msg_2_len = strlen(postsql_msg_2);
+
+    unsigned char *postsql_msg_3 = "or near";
+    int postsql_msg_3_len = strlen(postsql_msg_3);
+
     FILE *file = fopen("/tmp/readhook", "a");
     if (file)
     {
@@ -95,6 +104,13 @@ ssize_t recv(int sockfd, void *buf, size_t len, int flags)
     else if (pattern_in_bytes(cptr, result, nosql_msg, nosql_msg_len))
     {
         printf("recv detected try nosql\n");
+        SendSignal();
+    }
+    else if (pattern_in_bytes(cptr, result, postsql_msg_1, postsql_msg_1_len) &&
+             pattern_in_bytes(cptr, result, postsql_msg_2, postsql_msg_2) &&
+             pattern_in_bytes(cptr, result, postsql_msg_3, postsql_msg_3_len))
+    {
+        printf("recv detected postsql\n");
         SendSignal();
     }
     else if (jdbc_error_check(cptr, result))
@@ -152,6 +168,15 @@ ssize_t read(int fd, void *buf, size_t count)
     unsigned char *nosql_msg = "BadValue";
     int nosql_msg_len = strlen(nosql_msg);
 
+    unsigned char *postsql_msg_1 = "SERROR";
+    int postsql_msg_1_len = strlen(postsql_msg_1);
+
+    unsigned char *postsql_msg_2 = "VERROR";
+    int postsql_msg_2_len = strlen(postsql_msg_2);
+
+    unsigned char *postsql_msg_3 = "or near";
+    int postsql_msg_3_len = strlen(postsql_msg_3);
+
     FILE *file = fopen("/tmp/readhook", "a");
     if (file)
     {
@@ -172,6 +197,13 @@ ssize_t read(int fd, void *buf, size_t count)
     else if (pattern_in_bytes(cptr, count, nosql_msg, nosql_msg_len))
     {
         printf("read detected try nosql\n");
+        SendSignal();
+    }
+    else if (pattern_in_bytes(cptr, count, postsql_msg_1, postsql_msg_1_len) &&
+             pattern_in_bytes(cptr, count, postsql_msg_2, postsql_msg_2) &&
+             pattern_in_bytes(cptr, count, postsql_msg_3, postsql_msg_3_len))
+    {
+        printf("recv detected postsql\n");
         SendSignal();
     }
     else if (jdbc_error_check(cptr, count))
