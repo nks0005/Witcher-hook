@@ -39,8 +39,6 @@ void SendSignal()
     else
         printf("can't open httpreqr.pid");
 
-    FILE *test = fopen("/tmp/check", "w");
-    fclose(test);
 }
 
 int jdbc_error_check(unsigned char *cptr, size_t len)
@@ -107,7 +105,7 @@ ssize_t recv(int sockfd, void *buf, size_t len, int flags)
         SendSignal();
     }
     else if (pattern_in_bytes(cptr, result, postsql_msg_1, postsql_msg_1_len) &&
-             pattern_in_bytes(cptr, result, postsql_msg_2, postsql_msg_2) &&
+             pattern_in_bytes(cptr, result, postsql_msg_2, postsql_msg_2_len) &&
              pattern_in_bytes(cptr, result, postsql_msg_3, postsql_msg_3_len))
     {
         printf("recv detected postsql\n");
@@ -200,10 +198,10 @@ ssize_t read(int fd, void *buf, size_t count)
         SendSignal();
     }
     else if (pattern_in_bytes(cptr, count, postsql_msg_1, postsql_msg_1_len) &&
-             pattern_in_bytes(cptr, count, postsql_msg_2, postsql_msg_2) &&
+             pattern_in_bytes(cptr, count, postsql_msg_2, postsql_msg_2_len) &&
              pattern_in_bytes(cptr, count, postsql_msg_3, postsql_msg_3_len))
     {
-        printf("recv detected postsql\n");
+        printf("read detected postsql\n");
         SendSignal();
     }
     else if (jdbc_error_check(cptr, count))
